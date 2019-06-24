@@ -8,6 +8,6 @@ public interface DdapFrontendClient {
     String API_VERSION = "v1alpha";
 
     @RequestLine("GET /api/" + API_VERSION + "/{realm}/identity/login?user_agent=cli")
-    TokenResponse commandLineLogin(@Param("realm") String realm);
+    CommandLineLoginInitiationInfo startCommandLineLogin(@Param("realm") String realm);
 
 }

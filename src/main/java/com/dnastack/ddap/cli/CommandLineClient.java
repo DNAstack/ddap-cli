@@ -1,7 +1,7 @@
 package com.dnastack.ddap.cli;
 
 import com.dnastack.ddap.cli.client.dam.DdapFrontendClient;
-import com.dnastack.ddap.cli.client.dam.TokenResponse;
+import com.dnastack.ddap.cli.client.dam.CommandLineLoginInitiationInfo;
 import feign.Feign;
 import feign.jackson.JacksonDecoder;
 
@@ -24,7 +24,7 @@ public class CommandLineClient {
                                                            })
                                                            .target(DdapFrontendClient.class, ddapRootUrl);
 
-        final TokenResponse tokenResponse = ddapFrontendClient.commandLineLogin(realm);
-        System.out.println(tokenResponse);
+        final CommandLineLoginInitiationInfo commandLineLoginInitiationInfo = ddapFrontendClient.startCommandLineLogin(realm);
+        System.out.println(commandLineLoginInitiationInfo);
     }
 }
