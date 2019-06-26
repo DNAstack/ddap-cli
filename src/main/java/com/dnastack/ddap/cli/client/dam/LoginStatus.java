@@ -6,6 +6,6 @@ import java.net.URI;
 
 @Data
 public class LoginStatus {
-    private TokenResponse tokens;
+    private LoginTokenResponse tokens;
     private URI webLoginUrl;
 }

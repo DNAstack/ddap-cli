@@ -18,4 +18,15 @@ public interface DdapFrontendClient {
     @Headers("Authorization: {auth}")
     LoginStatus loginStatus(URI uri, @Param("auth") String auth);
 
+    @RequestLine("GET /dam/" + API_VERSION + "/{realm}/resources")
+    ResourceResponse getResources(@Param("realm") String realm);
+
+    @RequestLine("GET /dam/" + API_VERSION + "/{realm}/resources/{resourceId}/views/{viewId}/token?ttl={ttl}")
+    @Headers("Cookie: dam_token={damToken}")
+    ViewAccessTokenResponse getAccessToken(@Param("realm") String realm,
+                                           @Param("damToken") String damToken,
+                                           @Param("resourceId") String resourceId,
+                                           @Param("viewId") String viewId,
+                                           @Param("ttl") String ttl);
+
 }
