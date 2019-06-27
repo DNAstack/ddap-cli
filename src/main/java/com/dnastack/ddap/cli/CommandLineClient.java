@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import feign.Feign;
+import feign.Logger;
 import feign.jackson.JacksonDecoder;
 import lombok.Getter;
 import org.apache.commons.cli.*;
@@ -97,7 +98,7 @@ public class CommandLineClient {
             case "login":
                 executeLoginAndExit(parsedArgs, jsonMapper, contextDAO);
             case "list":
-                executeListAndExit(jsonMapper, yamlMapper, contextDAO);
+                executeListAndExit(parsedArgs, jsonMapper, yamlMapper, contextDAO);
             case "get-access":
                 executeGetAccessAndExit(parsedArgs, jsonMapper, yamlMapper, contextDAO);
             case "help":
@@ -114,7 +115,8 @@ public class CommandLineClient {
         final Context context = loadContextOrExit(contextDAO);
         final DdapFrontendClient ddapFrontendClient = buildFeignClient(context.getUrl(),
                                                                        context.getBasicCredentials(),
-                                                                       jsonMapper);
+                                                                       jsonMapper,
+                                                                       commandLine.hasOption("d"));
         try {
             final String resourceId = commandLine.getOptionValue("r");
             final String viewId = commandLine.getOptionValue("v");
@@ -137,13 +139,15 @@ public class CommandLineClient {
         throw new SystemExit(0);
     }
 
-    private static void executeListAndExit(ObjectMapper jsonMapper,
+    private static void executeListAndExit(CommandLine commandLine,
+                                           ObjectMapper jsonMapper,
                                            ObjectMapper yamlMapper,
                                            ContextDAO contextDAO) throws SystemExit {
         final Context context = loadContextOrExit(contextDAO);
         final DdapFrontendClient ddapFrontendClient = buildFeignClient(context.getUrl(),
                                                                        context.getBasicCredentials(),
-                                                                       jsonMapper);
+                                                                       jsonMapper,
+                                                                       commandLine.hasOption("d"));
         try {
             final ResourceResponse resourceResponse = new ListCommand(context,
                                                                       ddapFrontendClient,
@@ -194,7 +198,8 @@ public class CommandLineClient {
 
         final DdapFrontendClient ddapFrontendClient = buildFeignClient(ddapRootUrl,
                                                                        basicCredentials,
-                                                                       objectMapper);
+                                                                       objectMapper,
+                                                                       parsedArgs.hasOption("d"));
 
         final LoginCommand loginCommand = LoginCommand.create(objectMapper, ddapFrontendClient, parsedArgs);
         try {
@@ -270,16 +275,27 @@ public class CommandLineClient {
         return commandOptions;
     }
 
-    private static DdapFrontendClient buildFeignClient(String ddapRootUrl, BasicCredentials basicCredentials, ObjectMapper objectMapper) {
+    private static DdapFrontendClient buildFeignClient(String ddapRootUrl,
+                                                       BasicCredentials basicCredentials,
+                                                       ObjectMapper objectMapper,
+                                                       boolean debugLogging) {
         final Optional<String> encodedCredentials = Optional.ofNullable(basicCredentials)
                                                             .map(bc -> Base64.getEncoder()
                                                                              .encodeToString((bc.getUsername() + ":" + bc
                                                                                      .getPassword()).getBytes()));
         final Feign.Builder builder = Feign.builder()
-                                           .decoder(new JacksonDecoder(objectMapper));
+                                           .decoder(new JacksonDecoder(objectMapper))
+                                           .logLevel(debugLogging ? Logger.Level.FULL : Logger.Level.NONE)
+                                           .logger(new Logger() {
+                                               @Override
+                                               protected void log(String configKey, String format, Object... args) {
+                                                   System.out.printf(configKey + " " + format + "\n", args);
+                                               }
+                                           });
+
         return encodedCredentials
                 .map(ec -> builder.requestInterceptor(template -> template.header("Authorization",
-                                                                                  "Basic " + encodedCredentials)))
+                                                                                  "Basic " + ec)))
                 .orElse(builder)
                 .target(DdapFrontendClient.class, ddapRootUrl);
     }

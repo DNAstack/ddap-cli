@@ -32,6 +32,10 @@ public class HttpUtil {
 
     public static String parseDdapErrorMessage(ObjectMapper objectMapper, Response.Body body) {
         String rawString = null;
+        if (body == null) {
+            return "";
+        }
+
         try {
             rawString = IOUtils.toString(body.asInputStream());
             return objectMapper.readValue(rawString, DdapErrorResponse.class).getMessage();
