@@ -8,13 +8,9 @@ import feign.FeignException;
 import feign.Response;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.Option;
 
 import java.net.URI;
 import java.time.Instant;
-import java.util.Collection;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
@@ -30,21 +26,6 @@ public class LoginCommand {
     private final DdapFrontendClient ddapFrontendClient;
     @Getter
     private final String realm;
-
-    public static Collection<Option> getOptions() {
-        return List.of(Option.builder("r")
-                             .longOpt("realm")
-                             .desc("DDAP realm.")
-                             .required(false)
-                             .hasArg()
-                             .type(String.class)
-                             .build());
-    }
-
-    public static LoginCommand create(ObjectMapper objectMapper, DdapFrontendClient ddapFrontendClient, CommandLine commandLine) {
-        final String realm = commandLine.getOptionValue("r", "dnastack");
-        return new LoginCommand(objectMapper, ddapFrontendClient, realm);
-    }
 
     public LoginTokenResponse login() throws LoginException {
         final Response cliLoginCreateResponse = ddapFrontendClient.startCommandLineLogin(realm);
