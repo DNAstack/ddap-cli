@@ -23,6 +23,10 @@ public class HttpUtil {
     }
 
     public static String parseDdapErrorMessage(ObjectMapper objectMapper, FeignException fe) {
+        if (fe.content() == null) {
+            return "";
+        }
+
         try {
             return objectMapper.readValue(fe.content(), DdapErrorResponse.class).getMessage();
         } catch (IOException e) {

@@ -7,4 +7,5 @@ import java.util.Map;
 @Data
 public class View {
     private Map<String, String> ui;
+    private Map<String, Interface> interfaces;
 }
