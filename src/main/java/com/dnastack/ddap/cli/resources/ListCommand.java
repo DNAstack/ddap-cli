@@ -7,7 +7,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import feign.FeignException;
 import lombok.AllArgsConstructor;
 
-import static com.dnastack.ddap.cli.HttpUtil.parseDdapErrorMessage;
+import static com.dnastack.ddap.cli.client.HttpUtil.parseDdapErrorMessage;
 import static java.lang.String.format;
 
 @AllArgsConstructor

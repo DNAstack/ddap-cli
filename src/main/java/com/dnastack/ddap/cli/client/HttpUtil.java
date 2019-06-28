@@ -1,4 +1,4 @@
-package com.dnastack.ddap.cli;
+package com.dnastack.ddap.cli.client;
 
 import com.dnastack.ddap.cli.client.dam.DdapErrorResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;

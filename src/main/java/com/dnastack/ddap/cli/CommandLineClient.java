@@ -9,7 +9,6 @@ import com.dnastack.ddap.cli.resources.GetAccessCommand;
 import com.dnastack.ddap.cli.resources.ListCommand;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import feign.Feign;
 import feign.Logger;
@@ -18,29 +17,12 @@ import lombok.Getter;
 import org.apache.commons.cli.*;
 import org.apache.commons.io.IOUtils;
 
-import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.io.OutputStream;
+import java.io.*;
 import java.util.*;
 
 import static java.lang.String.format;
 
 public class CommandLineClient {
-
-    private static final String PRINT_OPT = "p";
-    private static final String FILE_OPT = "f";
-    private static final String RESOURCE_OPT = "r";
-    private static final String VIEW_OPT = "v";
-    private static final String TTL_OPT = "t";
-    private static final String LOCATION_OPT = "l";
-    private static final String USER_OPT = "u";
-    private static final String REALM_OPT = "r";
-
-    private static final String LOGIN_CMD = "login";
-    private static final String LIST_CMD = "list";
-    private static final String GET_ACCESS_CMD = "get-access";
-    private static final String HELP_CMD = "help";
 
     @Getter
     private static class SystemExit extends Exception {
@@ -58,7 +40,7 @@ public class CommandLineClient {
         try {
             run(args);
         } catch (SystemExit systemExit) {
-            final Option debugOption = debugOption();
+            final Option debugOption = CliOptions.debugOption();
             final boolean debugMode = Arrays.stream(args)
                                             .anyMatch(s -> s.equalsIgnoreCase("-" + debugOption.getOpt())
                                                     || s.equalsIgnoreCase("--" + debugOption.getLongOpt()));
@@ -77,13 +59,7 @@ public class CommandLineClient {
     indicating that the script should exit with a given status. May also contain a cause with debug information.
      */
     public static void run(String[] args) throws SystemExit {
-        final Map<String, Options> optionsByCommand = new HashMap<>();
-        optionsByCommand.put(LOGIN_CMD, loginOptions());
-        optionsByCommand.put(LIST_CMD, listOptions());
-        optionsByCommand.put(GET_ACCESS_CMD, getAccessOptions());
-        optionsByCommand.put(HELP_CMD, helpOptions());
-
-        optionsByCommand.forEach((k, v) -> addGlobalOptions(v));
+        final Map<String, Options> optionsByCommand = CliOptions.getCommandOptions();
 
         if (args.length < 1) {
             executeHelpAndExit(optionsByCommand, 1);
@@ -95,16 +71,7 @@ public class CommandLineClient {
             executeHelpAndExit(optionsByCommand, 1);
         }
 
-        final CommandLineParser parser = new DefaultParser();
-        final String[] unparsedCommandArgs = Arrays.copyOfRange(args, 1, args.length);
-        final CommandLine parsedArgs;
-        try {
-            parsedArgs = parser.parse(commandOptions, unparsedCommandArgs);
-        } catch (ParseException e) {
-            executeHelpAndExit(optionsByCommand, 1);
-            // satisfy the compiler
-            throw new AssertionError("Unreachable line.");
-        }
+        final CommandLine parsedArgs = parseArgsOrExit(args, optionsByCommand, commandOptions);
 
         final ObjectMapper jsonMapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
                                                                      false);
@@ -112,17 +79,31 @@ public class CommandLineClient {
         final ContextDAO contextDAO = new ContextDAO(new File(System.getenv("HOME")), jsonMapper);
 
         switch (command) {
-            case LOGIN_CMD:
+            case CliOptions.LOGIN_CMD:
                 executeLoginAndExit(parsedArgs, jsonMapper, contextDAO);
-            case LIST_CMD:
+            case CliOptions.LIST_CMD:
                 executeListAndExit(parsedArgs, jsonMapper, yamlMapper, contextDAO);
-            case GET_ACCESS_CMD:
+            case CliOptions.GET_ACCESS_CMD:
                 executeGetAccessAndExit(parsedArgs, jsonMapper, yamlMapper, contextDAO);
-            case HELP_CMD:
+            case CliOptions.HELP_CMD:
                 executeHelpAndExit(optionsByCommand, 0);
             default:
                 executeHelpAndExit(optionsByCommand, 1);
         }
+    }
+
+    private static CommandLine parseArgsOrExit(String[] args, Map<String, Options> optionsByCommand, Options commandOptions) throws SystemExit {
+        final CommandLine parsedArgs;
+        try {
+            final CommandLineParser parser = new DefaultParser();
+            final String[] unparsedCommandArgs = Arrays.copyOfRange(args, 1, args.length);
+            parsedArgs = parser.parse(commandOptions, unparsedCommandArgs);
+        } catch (ParseException e) {
+            executeHelpAndExit(optionsByCommand, 1);
+            // satisfy the compiler
+            throw new AssertionError("Unreachable line.");
+        }
+        return parsedArgs;
     }
 
     @FunctionalInterface
@@ -141,52 +122,16 @@ public class CommandLineClient {
                                                                        commandLine.hasOption("d"));
 
         final IOConsumer<ViewAccessTokenResponse> outputAction;
-        if (commandLine.hasOption(FILE_OPT)) {
-            final File outputFile = new File(commandLine.getOptionValue(FILE_OPT));
-            try {
-                outputFile.createNewFile();
-                if (!outputFile.canWrite()) {
-                    throw new IOException("Can't write to given file path");
-                }
-            } catch (IOException e) {
-                System.err.println(format("Problem with output file [%s]: %s", outputFile.getPath(), e.getMessage()));
-                throw new SystemExit(1, e);
-            }
-            outputAction = response -> {
-                try (OutputStream outputStream = new FileOutputStream(outputFile)) {
-                    final StringBuilder exportStmtBuilder = new StringBuilder();
-                    exportStmtBuilder.append("export TOKEN=")
-                                     .append(response.getToken())
-                                     .append('\n');
-                    final Interfaces interfaces = response.getView().getInterfaces();
-
-                    final Optional<String> foundHttpGcsUri = Optional.ofNullable(interfaces.getHttpGcs())
-                                                                     .map(GcsInterface::getUri)
-                                                                     .stream()
-                                                                     .flatMap(Collection::stream)
-                                                                     .findFirst();
-                    foundHttpGcsUri.ifPresent(uri -> exportStmtBuilder.append("export HTTP_BUCKET_URL=")
-                                                                      .append(uri)
-                                                                      .append('\n'));
-
-                    IOUtils.write(exportStmtBuilder.toString(), outputStream);
-                    System.out.printf("Output written to %s\n", outputFile.getPath());
-                    System.out.println("Use `source` to load into environment");
-                    System.out.println("Example:");
-                    System.out.println();
-                    System.out.printf("source %s\n", outputFile);
-                    if (foundHttpGcsUri.isPresent()) {
-                        System.out.println("curl ${HTTP_BUCKET_URL}/o?access_token=${TOKEN}");
-                    }
-                }
-            };
+        if (commandLine.hasOption(CliOptions.FILE_OPT)) {
+            final File outputFile = setupEnvFileOrExit(commandLine);
+            outputAction = response -> writeOutputToEnvFile(outputFile, response, System.out);
         } else {
             outputAction = response -> yamlMapper.writer().writeValue(System.out, response);
         }
         try {
-            final String resourceId = commandLine.getOptionValue(RESOURCE_OPT);
-            final String viewId = commandLine.getOptionValue(VIEW_OPT);
-            final String ttl = commandLine.getOptionValue(TTL_OPT, "1h");
+            final String resourceId = commandLine.getOptionValue(CliOptions.RESOURCE_OPT);
+            final String viewId = commandLine.getOptionValue(CliOptions.VIEW_OPT);
+            final String ttl = commandLine.getOptionValue(CliOptions.TTL_OPT, "1h");
 
             final ViewAccessTokenResponse response = new GetAccessCommand(context, ddapFrontendClient, jsonMapper)
                     .getAccessToken(resourceId,
@@ -203,6 +148,49 @@ public class CommandLineClient {
         }
 
         throw new SystemExit(0);
+    }
+
+    private static void writeOutputToEnvFile(File outputFile, ViewAccessTokenResponse response, PrintStream printStream) throws IOException {
+        try (OutputStream outputStream = new FileOutputStream(outputFile)) {
+            final StringBuilder exportStmtBuilder = new StringBuilder();
+            exportStmtBuilder.append("export TOKEN=")
+                             .append(response.getToken())
+                             .append('\n');
+            final Interfaces interfaces = response.getView().getInterfaces();
+
+            final Optional<String> foundHttpGcsUri = Optional.ofNullable(interfaces.getHttpGcs())
+                                                             .map(GcsInterface::getUri)
+                                                             .stream()
+                                                             .flatMap(Collection::stream)
+                                                             .findFirst();
+            foundHttpGcsUri.ifPresent(uri -> exportStmtBuilder.append("export HTTP_BUCKET_URL=")
+                                                              .append(uri)
+                                                              .append('\n'));
+
+            IOUtils.write(exportStmtBuilder.toString(), outputStream);
+            printStream.printf("Output written to %s\n", outputFile.getPath());
+            printStream.println("Use `source` to load into environment");
+            printStream.println("Example:");
+            printStream.println();
+            printStream.printf("source %s\n", outputFile);
+            if (foundHttpGcsUri.isPresent()) {
+                printStream.println("curl ${HTTP_BUCKET_URL}/o?access_token=${TOKEN}");
+            }
+        }
+    }
+
+    private static File setupEnvFileOrExit(CommandLine commandLine) throws SystemExit {
+        final File outputFile = new File(commandLine.getOptionValue(CliOptions.FILE_OPT));
+        try {
+            outputFile.createNewFile();
+            if (!outputFile.canWrite()) {
+                throw new IOException("Can't write to given file path");
+            }
+        } catch (IOException e) {
+            System.err.println(format("Problem with output file [%s]: %s", outputFile.getPath(), e.getMessage()));
+            throw new SystemExit(1, e);
+        }
+        return outputFile;
     }
 
     private static void executeListAndExit(CommandLine commandLine,
@@ -230,20 +218,6 @@ public class CommandLineClient {
         throw new SystemExit(0);
     }
 
-    private static void addGlobalOptions(Options options) {
-        options.addOption(debugOption());
-    }
-
-    private static Option debugOption() {
-        return Option.builder("d")
-                     .longOpt("debug")
-                     .desc("Enable stack traces on error.")
-                     .required(false)
-                     .hasArg(false)
-                     .type(Boolean.class)
-                     .build();
-    }
-
     private static Context loadContextOrExit(ContextDAO contextDAO) throws SystemExit {
         try {
             return contextDAO.load();
@@ -255,9 +229,9 @@ public class CommandLineClient {
     }
 
     private static void executeLoginAndExit(CommandLine parsedArgs, ObjectMapper objectMapper, ContextDAO contextDAO) throws SystemExit {
-        final String ddapRootUrl = parsedArgs.getOptionValue(LOCATION_OPT);
+        final String ddapRootUrl = parsedArgs.getOptionValue(CliOptions.LOCATION_OPT);
 
-        final String[] basicAuth = parsedArgs.getOptionValues(USER_OPT);
+        final String[] basicAuth = parsedArgs.getOptionValues(CliOptions.USER_OPT);
         final BasicCredentials basicCredentials = (basicAuth != null) ?
                 new BasicCredentials(basicAuth[0], basicAuth[1]) :
                 null;
@@ -267,7 +241,7 @@ public class CommandLineClient {
                                                                        objectMapper,
                                                                        parsedArgs.hasOption("d"));
 
-        final String realm = parsedArgs.getOptionValue(REALM_OPT, "dnastack");
+        final String realm = parsedArgs.getOptionValue(CliOptions.REALM_OPT, "dnastack");
         final LoginCommand loginCommand = new LoginCommand(objectMapper, ddapFrontendClient, realm);
         try {
             final LoginTokenResponse loginTokenResponse = loginCommand.login();
@@ -281,83 +255,8 @@ public class CommandLineClient {
     }
 
     private static void executeHelpAndExit(Map<String, Options> optionsByCommand, int helpExitStatus) throws SystemExit {
-        printHelpMessage(optionsByCommand);
+        CliOptions.printHelpMessage(optionsByCommand);
         throw new SystemExit(helpExitStatus);
-    }
-
-    private static void printHelpMessage(Map<String, Options> optionsByCommand) {
-        final HelpFormatter formatter = new HelpFormatter();
-        optionsByCommand.forEach(formatter::printHelp);
-    }
-
-    private static Options helpOptions() {
-        return new Options();
-    }
-
-    private static Options listOptions() {
-        return new Options();
-    }
-
-    private static Options getAccessOptions() {
-        final OptionGroup outputGroup = new OptionGroup()
-                .addOption(Option.builder(PRINT_OPT)
-                                 .longOpt("print")
-                                 .desc("Print tokens to stdout")
-                                 .hasArg(false)
-                                 .build())
-                .addOption(Option.builder(FILE_OPT)
-                                 .longOpt("env-file")
-                                 .desc("Write tokens to given file path with shell export statements.")
-                                 .hasArg(true)
-                                 .type(String.class)
-                                 .build());
-
-        return new Options()
-                .addOption(Option.builder(RESOURCE_OPT)
-                                 .longOpt("resource")
-                                 .required()
-                                 .desc("A DAM resource to request access")
-                                 .hasArg()
-                                 .build())
-                .addOption(Option.builder(VIEW_OPT)
-                                 .longOpt("view")
-                                 .required()
-                                 .desc("A DAM view to request access")
-                                 .hasArg()
-                                 .build())
-                .addOption(Option.builder(TTL_OPT)
-                                 .longOpt("ttl")
-                                 .required(false)
-                                 .desc("Access token TTL")
-                                 .hasArg()
-                                 .build())
-                .addOptionGroup(outputGroup);
-    }
-
-    private static Options loginOptions() {
-        return new Options()
-                .addOption(Option.builder(LOCATION_OPT)
-                                 .longOpt("location")
-                                 .desc("DDAP URL")
-                                 .required()
-                                 .hasArg()
-                                 .type(String.class)
-                                 .build())
-                .addOption(Option.builder(USER_OPT)
-                                 .longOpt("user")
-                                 .desc("Basic auth username and password.")
-                                 .required(false)
-                                 .hasArgs()
-                                 .numberOfArgs(2)
-                                 .type(String.class)
-                                 .build())
-                .addOption(Option.builder(REALM_OPT)
-                                 .longOpt("realm")
-                                 .desc("DDAP realm.")
-                                 .required(false)
-                                 .hasArg()
-                                 .type(String.class)
-                                 .build());
     }
 
     private static DdapFrontendClient buildFeignClient(String ddapRootUrl,

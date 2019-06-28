@@ -14,7 +14,7 @@ import java.time.Instant;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
-import static com.dnastack.ddap.cli.HttpUtil.*;
+import static com.dnastack.ddap.cli.client.HttpUtil.*;
 import static java.lang.String.format;
 
 @AllArgsConstructor
