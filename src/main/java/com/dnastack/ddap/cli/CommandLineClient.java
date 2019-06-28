@@ -9,6 +9,7 @@ import com.dnastack.ddap.cli.resources.GetAccessCommand;
 import com.dnastack.ddap.cli.resources.ListCommand;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import feign.Feign;
 import feign.Logger;
