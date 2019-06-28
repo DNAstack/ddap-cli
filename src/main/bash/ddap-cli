@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+ddapBin="$(dirname $0)"
+ddapCliRootDir="$(dirname "${ddapBin}")"
+ddapJre="${ddapCliRootDir}/jre/bin/java"
+
+${ddapJre} -jar "${ddapCliRootDir}/lib/ddap-cli.jar" "$@"
