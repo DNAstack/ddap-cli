@@ -155,7 +155,7 @@ public class CommandLineClient {
             outputAction = response -> {
                 try (OutputStream outputStream = new FileOutputStream(outputFile)) {
                     final StringBuilder exportStmtBuilder = new StringBuilder();
-                    exportStmtBuilder.append("TOKEN=")
+                    exportStmtBuilder.append("export TOKEN=")
                                      .append(response.getToken())
                                      .append('\n');
                     final Interfaces interfaces = response.getView().getInterfaces();
@@ -165,7 +165,7 @@ public class CommandLineClient {
                                                                      .stream()
                                                                      .flatMap(Collection::stream)
                                                                      .findFirst();
-                    foundHttpGcsUri.ifPresent(uri -> exportStmtBuilder.append("HTTP_BUCKET_URL=")
+                    foundHttpGcsUri.ifPresent(uri -> exportStmtBuilder.append("export HTTP_BUCKET_URL=")
                                                                       .append(uri)
                                                                       .append('\n'));
 
