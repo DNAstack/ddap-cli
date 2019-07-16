@@ -139,4 +139,12 @@
         </dependency>
     </dependencies>
 
+    <distributionManagement>
+        <repository>
+            <id>dnastack-releases</id>
+            <name>NexusDnastackReleases</name>
+            <url>https://nexus.dnastack.com/content/repositories/releases/</url>
+        </repository>
+    </distributionManagement>
+
 </project>
