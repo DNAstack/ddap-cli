@@ -129,12 +129,20 @@ public class CommandLineClient {
             outputAction = response -> yamlMapper.writer().writeValue(System.out, response);
         }
         try {
+            final String damId = commandLine.getOptionValue(CliOptions.DAM_ID_OPT);
             final String resourceId = commandLine.getOptionValue(CliOptions.RESOURCE_OPT);
             final String viewId = commandLine.getOptionValue(CliOptions.VIEW_OPT);
             final String ttl = commandLine.getOptionValue(CliOptions.TTL_OPT, "1h");
 
+            final DamInfo damInfo = context.getDamInfos().get(damId);
+            if (damInfo == null) {
+                System.err.printf("Invalid damId [%s]\n", damId);
+                throw new SystemExit(1);
+            }
+
             final ViewAccessTokenResponse response = new GetAccessCommand(context, ddapFrontendClient, jsonMapper)
-                    .getAccessToken(resourceId,
+                    .getAccessToken(damInfo,
+                                    resourceId,
                                     viewId,
                                     ttl);
             System.out.println("Access token acquired");
@@ -203,10 +211,10 @@ public class CommandLineClient {
                                                                        jsonMapper,
                                                                        commandLine.hasOption("d"));
         try {
-            final ResourceResponse resourceResponse = new ListCommand(context,
-                                                                      ddapFrontendClient,
-                                                                      jsonMapper).listResources();
-            yamlMapper.writer().writeValue(System.out, resourceResponse);
+            final Map<String, ResourceResponse> resourceResponseByDamId = new ListCommand(context,
+                                                                                          ddapFrontendClient,
+                                                                                          jsonMapper).listResources();
+            yamlMapper.writer().writeValue(System.out, resourceResponseByDamId);
         } catch (ListCommand.ListException e) {
             System.err.println(e.getMessage());
             throw new SystemExit(1, e);
@@ -245,7 +253,8 @@ public class CommandLineClient {
         final LoginCommand loginCommand = new LoginCommand(objectMapper, ddapFrontendClient, realm);
         try {
             final LoginTokenResponse loginTokenResponse = loginCommand.login();
-            contextDAO.persist(new Context(ddapRootUrl, loginCommand.getRealm(), loginTokenResponse, basicCredentials));
+            final Map<String, DamInfo> damInfos = ddapFrontendClient.getDamInfos();
+            contextDAO.persist(new Context(ddapRootUrl, loginCommand.getRealm(), damInfos, loginTokenResponse, basicCredentials));
             System.out.println("Login context saved");
         } catch (LoginCommand.LoginException | ContextDAO.PersistenceException e) {
             System.err.println(e.getMessage());

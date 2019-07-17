@@ -6,6 +6,7 @@ import feign.RequestLine;
 import feign.Response;
 
 import java.net.URI;
+import java.util.Map;
 
 public interface DdapFrontendClient {
 
@@ -18,15 +19,19 @@ public interface DdapFrontendClient {
     @Headers("Authorization: {auth}")
     LoginStatus loginStatus(URI uri, @Param("auth") String auth);
 
-    @RequestLine("GET /dam/" + API_VERSION + "/{realm}/resources")
-    ResourceResponse getResources(@Param("realm") String realm);
+    @RequestLine("GET {url}/{realm}/resources")
+    ResourceResponse getResources(URI uri, @Param("realm") String realm);
 
-    @RequestLine("GET /dam/" + API_VERSION + "/{realm}/resources/{resourceId}/views/{viewId}/token?ttl={ttl}")
+    @RequestLine("GET {url}/{realm}/resources/{resourceId}/views/{viewId}/token?ttl={ttl}")
     @Headers("Cookie: dam_token={damToken}")
-    ViewAccessTokenResponse getAccessToken(@Param("realm") String realm,
+    ViewAccessTokenResponse getAccessToken(URI uri,
+                                           @Param("realm") String realm,
                                            @Param("damToken") String damToken,
                                            @Param("resourceId") String resourceId,
                                            @Param("viewId") String viewId,
                                            @Param("ttl") String ttl);
+
+    @RequestLine("GET /api/" + API_VERSION + "/master/dam")
+    Map<String, DamInfo> getDamInfos();
 
 }

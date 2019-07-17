@@ -11,6 +11,7 @@ import java.util.Map;
 class CliOptions {
     private static final String PRINT_OPT = "p";
     static final String FILE_OPT = "f";
+    static final String DAM_ID_OPT = "i";
     static final String RESOURCE_OPT = "r";
     static final String VIEW_OPT = "v";
     static final String TTL_OPT = "t";
@@ -60,6 +61,12 @@ class CliOptions {
                                  .build());
 
         return new Options()
+                .addOption(Option.builder(DAM_ID_OPT)
+                                 .longOpt("damId")
+                                 .required()
+                                 .desc("An ID of a DAM")
+                                 .hasArg()
+                                 .build())
                 .addOption(Option.builder(RESOURCE_OPT)
                                  .longOpt("resource")
                                  .required()

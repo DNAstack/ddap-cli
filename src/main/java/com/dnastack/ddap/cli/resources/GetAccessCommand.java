@@ -1,11 +1,14 @@
 package com.dnastack.ddap.cli.resources;
 
+import com.dnastack.ddap.cli.client.dam.DamInfo;
 import com.dnastack.ddap.cli.client.dam.DdapFrontendClient;
 import com.dnastack.ddap.cli.client.dam.ViewAccessTokenResponse;
 import com.dnastack.ddap.cli.login.Context;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import feign.FeignException;
 import lombok.AllArgsConstructor;
+
+import java.net.URI;
 
 import static com.dnastack.ddap.cli.client.HttpUtil.parseDdapErrorMessage;
 import static java.lang.String.format;
@@ -22,9 +25,10 @@ public class GetAccessCommand {
         }
     }
 
-    public ViewAccessTokenResponse getAccessToken(String resourceId, String viewId, String ttl) throws GetAccessException {
+    public ViewAccessTokenResponse getAccessToken(DamInfo damInfo, String resourceId, String viewId, String ttl) throws GetAccessException {
         try {
-            return ddapFrontendClient.getAccessToken(context.getRealm(),
+            return ddapFrontendClient.getAccessToken(URI.create(damInfo.getUrl()),
+                                                     context.getRealm(),
                                                      context.getTokens().getIdToken(),
                                                      resourceId,
                                                      viewId,
