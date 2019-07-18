@@ -3,6 +3,7 @@ package com.dnastack.ddap.cli.login;
 import com.dnastack.ddap.cli.client.dam.DdapFrontendClient;
 import com.dnastack.ddap.cli.client.dam.LoginStatus;
 import com.dnastack.ddap.cli.client.dam.LoginTokenResponse;
+import com.dnastack.ddap.cli.client.dam.StartLoginResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import feign.FeignException;
 import feign.Response;
@@ -30,20 +31,19 @@ public class LoginCommand {
     public LoginTokenResponse login() throws LoginException {
         final Response cliLoginCreateResponse = ddapFrontendClient.startCommandLineLogin(realm);
         if (isSuccess(cliLoginCreateResponse.status())
-                && hasLocation(cliLoginCreateResponse)
-                && hasAuthorization(cliLoginCreateResponse)) {
+                && hasLocation(cliLoginCreateResponse)) {
             final URI cliLoginStatusUrl = URI.create(cliLoginCreateResponse.headers().get("Location").iterator().next());
-            final String loginAuthHeader = cliLoginCreateResponse.headers().get("Authorization").iterator().next();
 
             try {
-                final LoginStatus loginStatus = ddapFrontendClient.loginStatus(cliLoginStatusUrl, loginAuthHeader);
+                final StartLoginResponse startLoginResponse = objectMapper.readValue(cliLoginCreateResponse.body().asInputStream(), StartLoginResponse.class);
+                final LoginStatus loginStatus = ddapFrontendClient.loginStatus(cliLoginStatusUrl, startLoginResponse.getToken());
                 final URI webLoginUrl = loginStatus.getWebLoginUrl();
 
                 System.out.printf("Visit this link in a web browser to login: %s\n", webLoginUrl);
 
                 System.out.printf("Waiting for web login to complete for next %d seconds...\n", TIMEOUT_IN_SECONDS);
                 final LoginTokenResponse loginTokenResponse = pollStatus(() -> ddapFrontendClient.loginStatus(cliLoginStatusUrl,
-                                                                                                              loginAuthHeader));
+                                                                                                              startLoginResponse.getToken()));
                 System.out.println("Login successful");
 
                 return loginTokenResponse;

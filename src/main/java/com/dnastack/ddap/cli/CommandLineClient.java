@@ -10,17 +10,20 @@ import com.dnastack.ddap.cli.resources.ListCommand;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import feign.Feign;
-import feign.Logger;
+import feign.*;
 import feign.jackson.JacksonDecoder;
+import feign.okhttp.OkHttpClient;
 import lombok.Getter;
 import org.apache.commons.cli.*;
 import org.apache.commons.io.IOUtils;
 
 import java.io.*;
+import java.lang.reflect.InvocationHandler;
+import java.lang.reflect.Method;
 import java.util.*;
 
 import static java.lang.String.format;
+import static java.util.Collections.emptyList;
 
 public class CommandLineClient {
 
@@ -277,6 +280,7 @@ public class CommandLineClient {
                                                                              .encodeToString((bc.getUsername() + ":" + bc
                                                                                      .getPassword()).getBytes()));
         final Feign.Builder builder = Feign.builder()
+                                           .client(new OkHttpClient())
                                            .decoder(new JacksonDecoder(objectMapper))
                                            .logLevel(debugLogging ? Logger.Level.FULL : Logger.Level.NONE)
                                            .logger(new Logger() {
@@ -287,8 +291,7 @@ public class CommandLineClient {
                                            });
 
         return encodedCredentials
-                .map(ec -> builder.requestInterceptor(template -> template.header("Authorization",
-                                                                                  "Basic " + ec)))
+                .map(ec -> builder.requestInterceptor(template -> template.header("Authorization", "Basic " + ec)))
                 .orElse(builder)
                 .target(DdapFrontendClient.class, ddapRootUrl);
     }

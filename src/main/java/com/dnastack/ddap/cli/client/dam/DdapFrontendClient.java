@@ -1,9 +1,6 @@
 package com.dnastack.ddap.cli.client.dam;
 
-import feign.Headers;
-import feign.Param;
-import feign.RequestLine;
-import feign.Response;
+import feign.*;
 
 import java.net.URI;
 import java.util.Map;
@@ -16,8 +13,8 @@ public interface DdapFrontendClient {
     Response startCommandLineLogin(@Param("realm") String realm);
 
     @RequestLine("GET {url}")
-    @Headers("Authorization: {auth}")
-    LoginStatus loginStatus(URI uri, @Param("auth") String auth);
+    @Headers("Cookie: status_token={token}")
+    LoginStatus loginStatus(URI uri, @Param("token") String token);
 
     @RequestLine("GET {url}/{realm}/resources")
     ResourceResponse getResources(URI uri, @Param("realm") String realm);
