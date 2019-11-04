@@ -3,5 +3,8 @@
 ddapBin="$(dirname $0)"
 ddapCliRootDir="$(dirname "${ddapBin}")"
 ddapJre="${ddapCliRootDir}/jre/bin/java"
-
+if ! ${ddapJre} -v > /dev/null 2> /dev/null ; then
+  echo "Bundle java not executable on this platform"
+  ddapJre=java
+fi
 ${ddapJre} -jar "${ddapCliRootDir}/lib/ddap-cli.jar" "$@"
