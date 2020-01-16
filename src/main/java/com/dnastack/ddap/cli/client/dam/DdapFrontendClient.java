@@ -9,7 +9,7 @@ public interface DdapFrontendClient {
 
     String API_VERSION = "v1alpha";
 
-    @RequestLine("POST /api/" + API_VERSION + "/{realm}/cli/login")
+    @RequestLine("POST /api/" + API_VERSION + "/realm/{realm}/cli/login")
     Response startCommandLineLogin(@Param("realm") String realm);
 
     @RequestLine("GET {url}")
@@ -28,7 +28,7 @@ public interface DdapFrontendClient {
                                            @Param("viewId") String viewId,
                                            @Param("ttl") String ttl);
 
-    @RequestLine("GET /api/" + API_VERSION + "/master/dam")
+    @RequestLine("GET /api/" + API_VERSION + "/realm/master/dam")
     Map<String, DamInfo> getDamInfos();
 
 }
