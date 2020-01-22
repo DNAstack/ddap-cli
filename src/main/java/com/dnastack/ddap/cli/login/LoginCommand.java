@@ -30,8 +30,8 @@ public class LoginCommand {
 
     public LoginTokenResponse login() throws LoginException {
         final Response cliLoginCreateResponse = ddapFrontendClient.startCommandLineLogin(realm);
-        if (isSuccess(cliLoginCreateResponse.status())
-                && hasLocation(cliLoginCreateResponse)) {
+
+        if (isSuccess(cliLoginCreateResponse.status()) && hasLocation(cliLoginCreateResponse)) {
             final URI cliLoginStatusUrl = URI.create(cliLoginCreateResponse.headers().get("Location").iterator().next());
 
             try {

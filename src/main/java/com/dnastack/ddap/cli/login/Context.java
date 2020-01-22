@@ -6,7 +6,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.util.List;
 import java.util.Map;
 
 @Data
@@ -17,5 +16,5 @@ public class Context {
     private String realm;
     private Map<String, DamInfo> damInfos;
     private LoginTokenResponse tokens;
-    private BasicCredentials basicCredentials;
+    private Credentials credentials;
 }

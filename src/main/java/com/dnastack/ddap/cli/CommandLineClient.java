@@ -1,7 +1,8 @@
 package com.dnastack.ddap.cli;
 
 import com.dnastack.ddap.cli.client.dam.*;
-import com.dnastack.ddap.cli.login.BasicCredentials;
+import com.dnastack.ddap.cli.client.ddap.DdapHttpClient;
+import com.dnastack.ddap.cli.login.Credentials;
 import com.dnastack.ddap.cli.login.Context;
 import com.dnastack.ddap.cli.login.ContextDAO;
 import com.dnastack.ddap.cli.login.LoginCommand;
@@ -11,19 +12,15 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import feign.*;
-import feign.jackson.JacksonDecoder;
-import feign.okhttp.OkHttpClient;
 import lombok.Getter;
 import org.apache.commons.cli.*;
 import org.apache.commons.io.IOUtils;
 
 import java.io.*;
-import java.lang.reflect.InvocationHandler;
-import java.lang.reflect.Method;
+import java.net.HttpCookie;
 import java.util.*;
 
 import static java.lang.String.format;
-import static java.util.Collections.emptyList;
 
 public class CommandLineClient {
 
@@ -120,7 +117,7 @@ public class CommandLineClient {
                                                 ContextDAO contextDAO) throws SystemExit {
         final Context context = loadContextOrExit(contextDAO);
         final DdapFrontendClient ddapFrontendClient = buildFeignClient(context.getUrl(),
-                                                                       context.getBasicCredentials(),
+                                                                       context.getCredentials(),
                                                                        jsonMapper,
                                                                        commandLine.hasOption("d"));
 
@@ -210,7 +207,7 @@ public class CommandLineClient {
                                            ContextDAO contextDAO) throws SystemExit {
         final Context context = loadContextOrExit(contextDAO);
         final DdapFrontendClient ddapFrontendClient = buildFeignClient(context.getUrl(),
-                                                                       context.getBasicCredentials(),
+                                                                       context.getCredentials(),
                                                                        jsonMapper,
                                                                        commandLine.hasOption("d"));
         try {
@@ -242,22 +239,19 @@ public class CommandLineClient {
     private static void executeLoginAndExit(CommandLine parsedArgs, ObjectMapper objectMapper, ContextDAO contextDAO) throws SystemExit {
         final String ddapRootUrl = parsedArgs.getOptionValue(CliOptions.LOCATION_OPT);
 
-        final String[] basicAuth = parsedArgs.getOptionValues(CliOptions.USER_OPT);
-        final BasicCredentials basicCredentials = (basicAuth != null) ?
-                new BasicCredentials(basicAuth[0], basicAuth[1]) :
+        final String[] credentialsInput = parsedArgs.getOptionValues(CliOptions.USER_OPT);
+        final Credentials credentials = (credentialsInput != null) ?
+                new Credentials(credentialsInput[0], credentialsInput[1]) :
                 null;
 
-        final DdapFrontendClient ddapFrontendClient = buildFeignClient(ddapRootUrl,
-                                                                       basicCredentials,
-                                                                       objectMapper,
-                                                                       parsedArgs.hasOption("d"));
+        final DdapFrontendClient ddapFrontendClient = buildFeignClient(ddapRootUrl, credentials, objectMapper, parsedArgs.hasOption("d"));
 
         final String realm = parsedArgs.getOptionValue(CliOptions.REALM_OPT, "dnastack");
         final LoginCommand loginCommand = new LoginCommand(objectMapper, ddapFrontendClient, realm);
         try {
             final LoginTokenResponse loginTokenResponse = loginCommand.login();
             final Map<String, DamInfo> damInfos = ddapFrontendClient.getDamInfos();
-            contextDAO.persist(new Context(ddapRootUrl, loginCommand.getRealm(), damInfos, loginTokenResponse, basicCredentials));
+            contextDAO.persist(new Context(ddapRootUrl, loginCommand.getRealm(), damInfos, loginTokenResponse, credentials));
             System.out.println("Login context saved");
         } catch (LoginCommand.LoginException | ContextDAO.PersistenceException e) {
             System.err.println(e.getMessage());
@@ -272,28 +266,21 @@ public class CommandLineClient {
     }
 
     private static DdapFrontendClient buildFeignClient(String ddapRootUrl,
-                                                       BasicCredentials basicCredentials,
+                                                       Credentials credentials,
                                                        ObjectMapper objectMapper,
                                                        boolean debugLogging) {
-        final Optional<String> encodedCredentials = Optional.ofNullable(basicCredentials)
-                                                            .map(bc -> Base64.getEncoder()
-                                                                             .encodeToString((bc.getUsername() + ":" + bc
-                                                                                     .getPassword()).getBytes()));
-        final Feign.Builder builder = Feign.builder()
-                                           .client(new OkHttpClient())
-                                           .decoder(new JacksonDecoder(objectMapper))
-                                           .logLevel(debugLogging ? Logger.Level.FULL : Logger.Level.NONE)
-                                           .logger(new Logger() {
-                                               @Override
-                                               protected void log(String configKey, String format, Object... args) {
-                                                   System.out.printf(configKey + " " + format + "%n", args);
-                                               }
-                                           });
+        Optional<Credentials> maybeCredentials = Optional.ofNullable(credentials);
+        Feign.Builder builder = FeignClientBuilder.getBuilder(objectMapper, debugLogging);
 
-        return encodedCredentials
-                .map(ec -> builder.requestInterceptor(template -> template.header("Authorization", "Basic " + ec)))
-                .orElse(builder)
-                .target(DdapFrontendClient.class, ddapRootUrl);
+        return maybeCredentials
+            .map((creds) -> {
+                DdapHttpClient ddapClient = new DdapHttpClient();
+                HttpCookie session = ddapClient.loginToDdap(ddapRootUrl, credentials.getUsername(), credentials.getPassword());
+                return session.getValue();
+            })
+            .map((session) -> builder.requestInterceptor(template -> template.header("Cookie", "SESSION=" + session)))
+            .orElse(builder)
+            .target(DdapFrontendClient.class, ddapRootUrl);
     }
 
 }
