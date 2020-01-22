@@ -35,7 +35,7 @@ public class GetAccessCommand {
                                                      ttl);
         } catch (FeignException fe) {
             final String message = parseDdapErrorMessage(objectMapper, fe);
-            throw new GetAccessException(format("Could not get access to %s/%s\n%d : %s\n",
+            throw new GetAccessException(format("Could not get access to %s/%s%n%d : %s%n",
                                                 resourceId,
                                                 viewId,
                                                 fe.status(),

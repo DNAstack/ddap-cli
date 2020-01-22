@@ -1,3 +1,7 @@
 target/
 ddap-cli.iml
 dependency-reduced-pom.xml
+.idea
+#in case you unzip in root folder
+ddap-cli
+!src/main/bash/ddap-cli

@@ -39,9 +39,9 @@ public class LoginCommand {
                 final LoginStatus loginStatus = ddapFrontendClient.loginStatus(cliLoginStatusUrl, startLoginResponse.getToken());
                 final URI webLoginUrl = loginStatus.getWebLoginUrl();
 
-                System.out.printf("Visit this link in a web browser to login: %s\n", webLoginUrl);
+                System.out.printf("Visit this link in a web browser to login: %s%n", webLoginUrl);
 
-                System.out.printf("Waiting for web login to complete for next %d seconds...\n", TIMEOUT_IN_SECONDS);
+                System.out.printf("Waiting for web login to complete for next %d seconds...%n", TIMEOUT_IN_SECONDS);
                 final LoginTokenResponse loginTokenResponse = pollStatus(() -> ddapFrontendClient.loginStatus(cliLoginStatusUrl,
                                                                                                               startLoginResponse.getToken()));
                 System.out.println("Login successful");
@@ -49,13 +49,13 @@ public class LoginCommand {
                 return loginTokenResponse;
             } catch (FeignException fe) {
                 final String message = parseDdapErrorMessage(objectMapper, fe);
-                throw new LoginException(format("Could not poll login status.\n%d : %s\n", fe.status(), message));
+                throw new LoginException(format("Could not poll login status.%n%d : %s%n", fe.status(), message));
             } catch (Exception e) {
-                throw new LoginException(format("Client error encountered: %s\n", e.getMessage()), e);
+                throw new LoginException(format("Client error encountered: %s%n", e.getMessage()), e);
             }
         } else {
             final String message = parseDdapErrorMessage(objectMapper, cliLoginCreateResponse.body());
-            throw new LoginException(format("Could not initiate login\n%d : %s\n%s\n",
+            throw new LoginException(format("Could not initiate login%n%d : %s%n%s%n",
                                             cliLoginCreateResponse.status(),
                                             cliLoginCreateResponse.reason(),
                                             message));

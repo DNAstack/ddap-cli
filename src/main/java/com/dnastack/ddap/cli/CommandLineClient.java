@@ -139,7 +139,7 @@ public class CommandLineClient {
 
             final DamInfo damInfo = context.getDamInfos().get(damId);
             if (damInfo == null) {
-                System.err.printf("Invalid damId [%s]\n", damId);
+                System.err.printf("Invalid damId [%s]%n", damId);
                 throw new SystemExit(1);
             }
 
@@ -166,7 +166,7 @@ public class CommandLineClient {
             final StringBuilder exportStmtBuilder = new StringBuilder();
             exportStmtBuilder.append("export TOKEN=")
                              .append(response.getToken())
-                             .append('\n');
+                             .append(System.lineSeparator());
             final Interfaces interfaces = response.getView().getInterfaces();
 
             final Optional<String> foundHttpGcsUri = Optional.ofNullable(interfaces.getHttpGcs())
@@ -176,14 +176,14 @@ public class CommandLineClient {
                                                              .findFirst();
             foundHttpGcsUri.ifPresent(uri -> exportStmtBuilder.append("export HTTP_BUCKET_URL=")
                                                               .append(uri)
-                                                              .append('\n'));
+                                                              .append(System.lineSeparator()));
 
             IOUtils.write(exportStmtBuilder.toString(), outputStream);
-            printStream.printf("Output written to %s\n", outputFile.getPath());
+            printStream.printf("Output written to %s%n", outputFile.getPath());
             printStream.println("Use `source` to load into environment");
             printStream.println("Example:");
             printStream.println();
-            printStream.printf("source %s\n", outputFile);
+            printStream.printf("source %s%n", outputFile);
             if (foundHttpGcsUri.isPresent()) {
                 printStream.println("curl ${HTTP_BUCKET_URL}/o?access_token=${TOKEN}");
             }
@@ -286,7 +286,7 @@ public class CommandLineClient {
                                            .logger(new Logger() {
                                                @Override
                                                protected void log(String configKey, String format, Object... args) {
-                                                   System.out.printf(configKey + " " + format + "\n", args);
+                                                   System.out.printf(configKey + " " + format + "%n", args);
                                                }
                                            });
 

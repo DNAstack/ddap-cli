@@ -35,7 +35,7 @@ public class ListCommand {
                           .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
         } catch (FeignException fe) {
             final String message = parseDdapErrorMessage(objectMapper, fe);
-            throw new ListException(format("Could not list resources\n%d : %s\n", fe.status(), message), fe);
+            throw new ListException(format("Could not list resources%n%d : %s%n", fe.status(), message), fe);
         }
     }
 }
