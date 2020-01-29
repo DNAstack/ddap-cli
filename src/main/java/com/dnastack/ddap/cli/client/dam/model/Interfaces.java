@@ -1,4 +1,4 @@
-package com.dnastack.ddap.cli.client.dam;
+package com.dnastack.ddap.cli.client.dam.model;
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;

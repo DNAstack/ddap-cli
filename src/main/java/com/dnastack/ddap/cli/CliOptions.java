@@ -14,7 +14,6 @@ class CliOptions {
     static final String DAM_ID_OPT = "i";
     static final String RESOURCE_OPT = "r";
     static final String VIEW_OPT = "v";
-    static final String TTL_OPT = "t";
     static final String LOCATION_OPT = "l";
     static final String USER_OPT = "u";
     static final String REALM_OPT = "r";
@@ -79,12 +78,6 @@ class CliOptions {
                                  .desc("A DAM view to request access")
                                  .hasArg()
                                  .build())
-                .addOption(Option.builder(TTL_OPT)
-                                 .longOpt("ttl")
-                                 .required(false)
-                                 .desc("Access token TTL")
-                                 .hasArg()
-                                 .build())
                 .addOptionGroup(outputGroup);
     }
 
@@ -99,7 +92,7 @@ class CliOptions {
                                  .build())
                 .addOption(Option.builder(USER_OPT)
                                  .longOpt("user")
-                                 .desc("Basic auth username and password.")
+                                 .desc("Username and password.")
                                  .required(false)
                                  .hasArgs()
                                  .numberOfArgs(2)

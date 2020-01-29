@@ -1,7 +1,7 @@
 package com.dnastack.ddap.cli.resources;
 
 import com.dnastack.ddap.cli.client.dam.DdapFrontendClient;
-import com.dnastack.ddap.cli.client.dam.ResourceResponse;
+import com.dnastack.ddap.cli.client.dam.model.ResourceResponse;
 import com.dnastack.ddap.cli.login.Context;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import feign.FeignException;
