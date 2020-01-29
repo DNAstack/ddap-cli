@@ -1,0 +1,78 @@
+steps:
+  - id: setup
+    name: 'gcr.io/cloud-builders/gcloud'
+    entrypoint: 'bash'
+    args:
+      - '-e'
+      - '-x'
+      - '-c'
+      - |
+        # Your current directory is a workspace.
+        gcloud auth list
+        gsutil cp gs://dnastack-ci-content/bootstrap-workspace.tar.gz /tmp
+        cd /tmp
+        tar xzf bootstrap-workspace.tar.gz
+
+        # Decrypt the GitHub RSA private key
+        gcloud kms decrypt --ciphertext-file=.ssh/github_rsa_key.enc --plaintext-file=.ssh/id_rsa --location=global --keyring=cloud-build-webhook --key=secret_key
+        cp -r .ssh /root/
+        rm -r .ssh
+        chmod 700 /root/.ssh
+        chmod 600 /root/.ssh/id_rsa
+
+        # Decrypt the Maven settings
+        gcloud kms decrypt --ciphertext-file=.m2/settings.xml.enc --plaintext-file=.m2/settings.xml --location=global --keyring=cloud-build-webhook --key=secret_key
+        cp -r .m2 /root/
+        rm -r .m2
+        chmod 775 /root/.m2
+        chmod 664 /root/.m2/settings.xml
+    volumes:
+      - name: 'homedir'
+        path: /root
+
+  - id: get_full_history
+    name: 'gcr.io/cloud-builders/git'
+    args:
+      - clone
+      - ${_SOURCE_SSH_URL}/${REPO_NAME}
+    volumes:
+      - name: 'homedir'
+        path: /root
+
+  - id: build_and_publish
+    name: 'openjdk:11-jdk-slim'
+    entrypoint: 'bash'
+    args:
+      - '-e'
+      - '-x'
+      - '-c'
+      - |
+        # NOTE: In this context, the user is "root" and the home folder is "/root".
+        # Copy files to the home filder because the home folder is protected.
+        cp -rv /homedir_dotfiles/.??* /root/
+
+        # Install git to get the release version.
+        # Need libatomic1 for protoc.
+        apt update && apt install -y git libatomic1
+
+        releaseVersion=$(cd ${REPO_NAME} && git checkout -q ${COMMIT_SHA} && git describe --abbrev=7)
+        cp -r ${REPO_NAME}/.git .
+
+        ./mvnw -B versions:set -DnewVersion=${releaseVersion}
+        ./mvnw -B -Pdnastack clean deploy
+    volumes:
+      - name: 'homedir'
+        path: /homedir_dotfiles
+
+substitutions:
+  _SOURCE_SSH_URL: "git@github.com:DNAstack"
+
+timeout: 3600s
+options:
+  substitutionOption: ALLOW_LOOSE
+  logStreamingOption: STREAM_ON
+tags:
+  - "pipeline"
+  - "pipeline.run_id.rogue"
+  - "pipeline.type.library-java"
+  - "repo.$REPO_NAME"
