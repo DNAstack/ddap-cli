@@ -1,17 +1,18 @@
 package com.dnastack.ddap.cli;
 
-import com.dnastack.ddap.cli.client.dam.*;
+import com.dnastack.ddap.cli.client.dam.DdapFrontendClient;
+import com.dnastack.ddap.cli.client.dam.FeignClientBuilder;
 import com.dnastack.ddap.cli.client.dam.model.*;
 import com.dnastack.ddap.cli.client.ddap.DdapHttpClient;
-import com.dnastack.ddap.cli.login.Credentials;
 import com.dnastack.ddap.cli.login.Context;
 import com.dnastack.ddap.cli.login.ContextDAO;
+import com.dnastack.ddap.cli.login.Credentials;
 import com.dnastack.ddap.cli.resources.GetAccessCommand;
 import com.dnastack.ddap.cli.resources.ListCommand;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
-import feign.*;
+import feign.Feign;
 import lombok.Getter;
 import org.apache.commons.cli.*;
 import org.apache.commons.io.IOUtils;
@@ -19,7 +20,9 @@ import org.apache.commons.io.IOUtils;
 import java.io.*;
 import java.net.HttpCookie;
 import java.net.URI;
-import java.util.*;
+import java.util.Arrays;
+import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Collectors;
 
 import static java.lang.String.format;
@@ -185,7 +188,16 @@ public class CommandLineClient {
     private static void writeOutputToEnvFile(File outputFile, ResourceTokens response, PrintStream printStream) throws IOException {
         try (OutputStream outputStream = new FileOutputStream(outputFile)) {
             final StringBuilder exportStmtBuilder = new StringBuilder();
-            final String accessToken = response.getAccess().get("0").getAccessToken();
+            final String access = response.getResources()
+                                          .values()
+                                          .stream()
+                                          .map(ResourceTokens.Descriptor::getAccess)
+                                          .findFirst()
+                                          .orElseThrow(() -> new IllegalStateException("Token response must contain at least one resource"));
+            final String accessToken = response.getAccess()
+                                               .get(access)
+                                               .getCredentials()
+                                               .getAccessToken();
             exportStmtBuilder.append("export TOKEN=")
                              .append(accessToken)
                              .append(System.lineSeparator());
@@ -203,7 +215,7 @@ public class CommandLineClient {
                 .get(0); // Assuming there is just one resource
 
             foundHttpGcsUri.ifPresent(interfaceObj -> exportStmtBuilder.append("export HTTP_BUCKET_URL=")
-                                                              .append(interfaceObj.getUri().get(0))
+                                                              .append(interfaceObj.getItems().get(0).getUri())
                                                               .append(System.lineSeparator()));
 
             IOUtils.write(exportStmtBuilder.toString(), outputStream);

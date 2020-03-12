@@ -12,6 +12,8 @@ import java.util.Map;
 @Data
 public class Interface {
 
+    private Map<String, String> labels;
+
     @JsonIgnore
     @JsonAnySetter
     private final Map<String, List<String>> bindings = new HashMap<>();
