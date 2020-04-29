@@ -8,5 +8,6 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @NoArgsConstructor
 public class Credentials {
-    private String username, password;
+
+    private String username, password, sessionDecryptionKey, sessionId;
 }

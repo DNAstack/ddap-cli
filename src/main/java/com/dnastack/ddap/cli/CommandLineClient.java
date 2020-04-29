@@ -1,8 +1,14 @@
 package com.dnastack.ddap.cli;
 
+import static java.lang.String.format;
+
 import com.dnastack.ddap.cli.client.dam.DdapFrontendClient;
 import com.dnastack.ddap.cli.client.dam.FeignClientBuilder;
-import com.dnastack.ddap.cli.client.dam.model.*;
+import com.dnastack.ddap.cli.client.dam.model.DamInfo;
+import com.dnastack.ddap.cli.client.dam.model.Resource;
+import com.dnastack.ddap.cli.client.dam.model.ResourceResponse;
+import com.dnastack.ddap.cli.client.dam.model.ResourceTokens;
+import com.dnastack.ddap.cli.client.dam.model.View;
 import com.dnastack.ddap.cli.client.ddap.DdapHttpClient;
 import com.dnastack.ddap.cli.login.Context;
 import com.dnastack.ddap.cli.login.ContextDAO;
@@ -13,29 +19,37 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.dataformat.yaml.YAMLFactory;
 import feign.Feign;
-import lombok.Getter;
-import org.apache.commons.cli.*;
-import org.apache.commons.io.IOUtils;
-
-import java.io.*;
-import java.net.HttpCookie;
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.io.PrintStream;
 import java.net.URI;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
 import java.util.stream.Collectors;
-
-import static java.lang.String.format;
+import lombok.Getter;
+import org.apache.commons.cli.CommandLine;
+import org.apache.commons.cli.CommandLineParser;
+import org.apache.commons.cli.DefaultParser;
+import org.apache.commons.cli.Option;
+import org.apache.commons.cli.Options;
+import org.apache.commons.cli.ParseException;
+import org.apache.commons.io.IOUtils;
 
 public class CommandLineClient {
 
     @Getter
     private static class SystemExit extends Exception {
+
         private final int status;
+
         SystemExit(int status, Throwable cause) {
             super(cause);
             this.status = status;
         }
+
         SystemExit(int status) {
             this.status = status;
         }
@@ -47,8 +61,8 @@ public class CommandLineClient {
         } catch (SystemExit systemExit) {
             final Option debugOption = CliOptions.debugOption();
             final boolean debugMode = Arrays.stream(args)
-                                            .anyMatch(s -> s.equalsIgnoreCase("-" + debugOption.getOpt())
-                                                    || s.equalsIgnoreCase("--" + debugOption.getLongOpt()));
+                .anyMatch(s -> s.equalsIgnoreCase("-" + debugOption.getOpt())
+                    || s.equalsIgnoreCase("--" + debugOption.getLongOpt()));
             if (debugMode && systemExit.getCause() != null) {
                 systemExit.getCause().printStackTrace(System.err);
             }
@@ -60,8 +74,8 @@ public class CommandLineClient {
      * Runs without calling {@link System#exit(int)}. Throws a {@link SystemExit} exception instead.
      *
      * @param args Command-line arguments.
-     * @throws SystemExit The usual way this method returns,
-    indicating that the script should exit with a given status. May also contain a cause with debug information.
+     * @throws SystemExit The usual way this method returns, indicating that the script should exit with a given status.
+     * May also contain a cause with debug information.
      */
     public static void run(String[] args) throws SystemExit {
         final Map<String, Options> optionsByCommand = CliOptions.getCommandOptions();
@@ -79,7 +93,7 @@ public class CommandLineClient {
         final CommandLine parsedArgs = parseArgsOrExit(args, optionsByCommand, commandOptions);
 
         final ObjectMapper jsonMapper = new ObjectMapper().configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES,
-                                                                     false);
+            false);
         final ObjectMapper yamlMapper = new ObjectMapper(new YAMLFactory());
         final ContextDAO contextDAO = new ContextDAO(new File(System.getenv("HOME")), jsonMapper);
 
@@ -104,7 +118,7 @@ public class CommandLineClient {
             final String[] unparsedCommandArgs = Arrays.copyOfRange(args, 1, args.length);
             parsedArgs = parser.parse(commandOptions, unparsedCommandArgs);
         } catch (ParseException e) {
-            executeHelpAndExit(optionsByCommand, 1);
+            executeHelpAndExitExceptionally(e, optionsByCommand, 1);
             // satisfy the compiler
             throw new AssertionError("Unreachable line.");
         }
@@ -113,19 +127,20 @@ public class CommandLineClient {
 
     @FunctionalInterface
     private interface IOConsumer<T> {
+
         void accept(T t) throws IOException;
     }
 
     private static void executeGetAccessAndExit(CommandLine commandLine,
-                                                ObjectMapper jsonMapper,
-                                                ObjectMapper yamlMapper,
-                                                ContextDAO contextDAO) throws SystemExit {
+        ObjectMapper jsonMapper,
+        ObjectMapper yamlMapper,
+        ContextDAO contextDAO) throws SystemExit {
         final Context context = loadContextOrExit(contextDAO);
         final DdapFrontendClient ddapFrontendClient = buildFeignClient(context.getUrl(),
-                                                                       context.getCredentials(),
-                                                                       jsonMapper,
-                                                                       commandLine.hasOption("d"));
-
+            context,
+            jsonMapper,
+            commandLine.hasOption("d"));
+        persistContextIfRequired(contextDAO, context);
         final IOConsumer<ResourceTokens> outputAction;
         if (commandLine.hasOption(CliOptions.FILE_OPT)) {
             final File outputFile = setupEnvFileOrExit(commandLine);
@@ -144,7 +159,8 @@ public class CommandLineClient {
                 throw new SystemExit(1);
             }
 
-            final Optional<View> maybeView = getView(ddapFrontendClient, damInfo.getUrl(), context.getRealm(), resourceId, viewId);
+            final Optional<View> maybeView = getView(ddapFrontendClient, damInfo.getUrl(), context
+                .getRealm(), resourceId, viewId);
             if (maybeView.isEmpty()) {
                 System.err.println("Mismatch in resource or view identifier. Make sure that given resource/view exits");
                 throw new SystemExit(1);
@@ -152,7 +168,7 @@ public class CommandLineClient {
 
             final String roleId = getDefaultRole(maybeView.get());
             final ResourceTokens response = new GetAccessCommand(context, ddapFrontendClient, jsonMapper)
-                    .getAccessToken(damInfo, resourceId, viewId, roleId);
+                .getAccessToken(damInfo, resourceId, viewId, roleId);
             System.out.println("Access token acquired");
             outputAction.accept(response);
         } catch (GetAccessCommand.GetAccessException e) {
@@ -180,7 +196,7 @@ public class CommandLineClient {
     }
 
     private static String getDefaultRole(View view) {
-        return  view.getRoles().keySet()
+        return view.getRoles().keySet()
             .iterator()
             .next();
     }
@@ -189,18 +205,18 @@ public class CommandLineClient {
         try (OutputStream outputStream = new FileOutputStream(outputFile)) {
             final StringBuilder exportStmtBuilder = new StringBuilder();
             final String access = response.getResources()
-                                          .values()
-                                          .stream()
-                                          .map(ResourceTokens.Descriptor::getAccess)
-                                          .findFirst()
-                                          .orElseThrow(() -> new IllegalStateException("Token response must contain at least one resource"));
+                .values()
+                .stream()
+                .map(ResourceTokens.Descriptor::getAccess)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException("Token response must contain at least one resource"));
             final String accessToken = response.getAccess()
-                                               .get(access)
-                                               .getCredentials()
-                                               .getAccessToken();
+                .get(access)
+                .getCredentials()
+                .getAccessToken();
             exportStmtBuilder.append("export TOKEN=")
-                             .append(accessToken)
-                             .append(System.lineSeparator());
+                .append(accessToken)
+                .append(System.lineSeparator());
 
             final Optional<ResourceTokens.Interface> foundHttpGcsUri = response.getResources().keySet().stream()
                 .map((resource) -> response.getResources().get(resource))
@@ -215,8 +231,8 @@ public class CommandLineClient {
                 .get(0); // Assuming there is just one resource
 
             foundHttpGcsUri.ifPresent(interfaceObj -> exportStmtBuilder.append("export HTTP_BUCKET_URL=")
-                                                              .append(interfaceObj.getItems().get(0).getUri())
-                                                              .append(System.lineSeparator()));
+                .append(interfaceObj.getItems().get(0).getUri())
+                .append(System.lineSeparator()));
 
             IOUtils.write(exportStmtBuilder.toString(), outputStream);
             printStream.printf("Output written to %s%n", outputFile.getPath());
@@ -245,18 +261,19 @@ public class CommandLineClient {
     }
 
     private static void executeListAndExit(CommandLine commandLine,
-                                           ObjectMapper jsonMapper,
-                                           ObjectMapper yamlMapper,
-                                           ContextDAO contextDAO) throws SystemExit {
+        ObjectMapper jsonMapper,
+        ObjectMapper yamlMapper,
+        ContextDAO contextDAO) throws SystemExit {
         final Context context = loadContextOrExit(contextDAO);
         final DdapFrontendClient ddapFrontendClient = buildFeignClient(context.getUrl(),
-                                                                       context.getCredentials(),
-                                                                       jsonMapper,
-                                                                       commandLine.hasOption("d"));
+            context,
+            jsonMapper,
+            commandLine.hasOption("d"));
+        persistContextIfRequired(contextDAO, context);
         try {
             final Map<String, ResourceResponse> resourceResponseByDamId = new ListCommand(context,
-                                                                                          ddapFrontendClient,
-                                                                                          jsonMapper).listResources();
+                ddapFrontendClient,
+                jsonMapper).listResources();
             yamlMapper.writer().writeValue(System.out, resourceResponseByDamId);
         } catch (ListCommand.ListException e) {
             System.err.println(e.getMessage());
@@ -284,20 +301,22 @@ public class CommandLineClient {
 
         final String[] credentialsInput = parsedArgs.getOptionValues(CliOptions.USER_OPT);
         final Credentials credentials = (credentialsInput != null) ?
-                new Credentials(credentialsInput[0], credentialsInput[1]) :
-                null;
+            new Credentials(credentialsInput[0], credentialsInput[1], null, null) :
+            null;
 
-        final DdapFrontendClient ddapFrontendClient = buildFeignClient(ddapRootUrl, credentials, objectMapper, parsedArgs.hasOption("d"));
+        Context context = new Context();
+        context.setCredentials(credentials);
+
+        final DdapFrontendClient ddapFrontendClient = buildFeignClient(ddapRootUrl, context, objectMapper, parsedArgs
+            .hasOption("d"));
 
         final String realm = parsedArgs.getOptionValue(CliOptions.REALM_OPT, "dnastack");
-        try {
-            final Map<String, DamInfo> damInfos = ddapFrontendClient.getDamInfos();
-            contextDAO.persist(new Context(ddapRootUrl, realm, damInfos, credentials));
-            System.out.println("Login context saved");
-        } catch (ContextDAO.PersistenceException e) {
-            System.err.println(e.getMessage());
-            throw new SystemExit(1, e);
-        }
+        final Map<String, DamInfo> damInfos = ddapFrontendClient.getDamInfos();
+        context.setRealm(realm);
+        context.setDamInfos(damInfos);
+        context.setUrl(ddapRootUrl);
+        context.setChanged(true);
+        persistContextIfRequired(contextDAO, context);
         throw new SystemExit(0);
     }
 
@@ -306,21 +325,58 @@ public class CommandLineClient {
         throw new SystemExit(helpExitStatus);
     }
 
+    private static void executeHelpAndExitExceptionally(Throwable throwable, Map<String, Options> optionsByCommand, int helpExitStatus) throws SystemExit {
+        if (throwable != null && throwable.getMessage() != null) {
+            System.err.println(throwable.getMessage());
+        }
+        CliOptions.printHelpMessage(optionsByCommand);
+        throw new SystemExit(helpExitStatus, throwable);
+    }
+
+
+    private static void persistContextIfRequired(ContextDAO contextDAO, Context context) throws SystemExit {
+        if (context.isChanged()) {
+            persistContext(contextDAO, context);
+        }
+    }
+
+    private static void persistContext(ContextDAO contextDAO, Context context) throws SystemExit {
+        try {
+            contextDAO.persist(context);
+            System.out.println("Login context saved");
+        } catch (ContextDAO.PersistenceException e) {
+            System.err.println(e.getMessage());
+            throw new SystemExit(1, e);
+        }
+    }
+
     private static DdapFrontendClient buildFeignClient(String ddapRootUrl,
-                                                       Credentials credentials,
-                                                       ObjectMapper objectMapper,
-                                                       boolean debugLogging) {
-        Optional<Credentials> maybeCredentials = Optional.ofNullable(credentials);
+        Context context,
+        ObjectMapper objectMapper,
+        boolean debugLogging) {
         Feign.Builder builder = FeignClientBuilder.getBuilder(objectMapper, debugLogging);
 
-        return maybeCredentials
-            .map((creds) -> {
-                DdapHttpClient ddapClient = new DdapHttpClient();
-                HttpCookie session = ddapClient.loginToDdap(ddapRootUrl, credentials.getUsername(), credentials.getPassword());
-                return session.getValue();
-            })
-            .map((session) -> builder.requestInterceptor(template -> template.header("Cookie", "SESSION=" + session)))
-            .orElse(builder)
+        Credentials credentials = context.getCredentials() != null ? context.getCredentials() : new Credentials();
+
+        DdapHttpClient ddapHttpClient = new DdapHttpClient();
+
+        ddapHttpClient.loginToDdap(ddapRootUrl, context.getCredentials())
+            .forEach(cookie -> {
+                if (cookie.getName().equals("SESSION") && !cookie.getValue().equals(credentials.getSessionId())) {
+                    credentials.setSessionId(cookie.getValue());
+                    context.setChanged(true);
+                } else if (cookie.getName().equals("SESSION_DECRYPTION_KEY") && !cookie.getValue()
+                    .equals(credentials.getSessionDecryptionKey())) {
+                    credentials.setSessionDecryptionKey(cookie.getValue());
+                    context.setChanged(true);
+                }
+            });
+        context.setCredentials(credentials);
+
+        String sessionCookieString = String
+            .format("SESSION=%s;SESSION_DECRYPTION_KEY=%s", context.getCredentials().getSessionId(), context
+                .getCredentials().getSessionDecryptionKey());
+        return builder.requestInterceptor(template -> template.header("Cookie", sessionCookieString))
             .target(DdapFrontendClient.class, ddapRootUrl);
     }
 
