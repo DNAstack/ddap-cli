@@ -27,7 +27,7 @@ public class DdapHttpClient {
             return loginWithOldSessionId(ddapBaseUri, credentials);
         }
 
-        if (credentials != null) {
+        if (credentials.getUsername() != null && credentials.getPassword() != null) {
             String form = String
                 .format("username=%s&password=%s", credentials.getPassword(), credentials.getPassword());
             request = HttpRequest.newBuilder()
@@ -45,6 +45,10 @@ public class DdapHttpClient {
         try {
             HttpResponse<String> response = DdapHttpClient.buildClient()
                 .send(request, HttpResponse.BodyHandlers.ofString());
+
+            if (response.statusCode() != 200) {
+                throw new DdapClientException("Could not login to DDAP");
+            }
             return extractCookies(response);
         } catch (IOException | InterruptedException e) {
             throw new DdapClientException(e);
