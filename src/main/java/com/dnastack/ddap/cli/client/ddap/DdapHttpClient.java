@@ -46,7 +46,8 @@ public class DdapHttpClient {
             HttpResponse<String> response = DdapHttpClient.buildClient()
                 .send(request, HttpResponse.BodyHandlers.ofString());
 
-            if (response.statusCode() != 200) {
+            if (response.statusCode() == 302 && response.headers().firstValue("location").map(l -> l.endsWith("login"))
+                .orElse(false)) {
                 throw new DdapClientException("Could not login to DDAP");
             }
             return extractCookies(response);
