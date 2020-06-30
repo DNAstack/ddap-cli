@@ -2,9 +2,10 @@ package com.dnastack.ddap.cli.client.dam.model;
 
 import lombok.Data;
 
+import java.util.List;
 import java.util.Map;
 
 @Data
 public class ResourceResponse {
-    private Map<String, Resource> resources;
+    private List<Map<String, Object>> data;
 }

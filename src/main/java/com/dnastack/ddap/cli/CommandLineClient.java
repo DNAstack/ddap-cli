@@ -5,7 +5,6 @@ import static java.lang.String.format;
 import com.dnastack.ddap.cli.client.dam.DdapFrontendClient;
 import com.dnastack.ddap.cli.client.dam.FeignClientBuilder;
 import com.dnastack.ddap.cli.client.dam.model.DamInfo;
-import com.dnastack.ddap.cli.client.dam.model.Resource;
 import com.dnastack.ddap.cli.client.dam.model.ResourceResponse;
 import com.dnastack.ddap.cli.client.dam.model.ResourceTokens;
 import com.dnastack.ddap.cli.client.dam.model.View;
@@ -24,7 +23,6 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.io.PrintStream;
-import java.net.URI;
 import java.util.Arrays;
 import java.util.Map;
 import java.util.Optional;
@@ -111,7 +109,9 @@ public class CommandLineClient {
         }
     }
 
-    private static CommandLine parseArgsOrExit(String[] args, Map<String, Options> optionsByCommand, Options commandOptions) throws SystemExit {
+    private static CommandLine parseArgsOrExit(String[] args,
+                                               Map<String, Options> optionsByCommand,
+                                               Options commandOptions) throws SystemExit {
         final CommandLine parsedArgs;
         try {
             final CommandLineParser parser = new DefaultParser();
@@ -149,29 +149,13 @@ public class CommandLineClient {
             outputAction = response -> yamlMapper.writer().writeValue(System.out, response);
         }
         try {
-            final String damId = commandLine.getOptionValue(CliOptions.DAM_ID_OPT);
-            final String resourceId = commandLine.getOptionValue(CliOptions.RESOURCE_OPT);
-            final String viewId = commandLine.getOptionValue(CliOptions.VIEW_OPT);
-
-            final DamInfo damInfo = context.getDamInfos().get(damId);
-            if (damInfo == null) {
-                System.err.printf("Invalid damId [%s]%n", damId);
-                throw new SystemExit(1);
-            }
-
-            final Optional<View> maybeView = getView(ddapFrontendClient, damInfo.getUrl(), context
-                .getRealm(), resourceId, viewId);
-            if (maybeView.isEmpty()) {
-                System.err.println("Mismatch in resource or view identifier. Make sure that given resource/view exits");
-                throw new SystemExit(1);
-            }
-
-            final String roleId = getDefaultRole(maybeView.get());
+            final String interfaceId = commandLine.getOptionValue(CliOptions.INTERFACE_ID_OPT);
             final ResourceTokens response = new GetAccessCommand(context, ddapFrontendClient, jsonMapper)
-                .getAccessToken(damInfo, resourceId, viewId, roleId);
+                .getAccessToken(interfaceId);
             System.out.println("Access token acquired");
             outputAction.accept(response);
-        } catch (GetAccessCommand.GetAccessException e) {
+        }
+        catch (GetAccessCommand.GetAccessException e) {
             System.out.println(e.getMessage());
             throw new SystemExit(1, e);
         } catch (IOException e) {
@@ -182,57 +166,16 @@ public class CommandLineClient {
         throw new SystemExit(0);
     }
 
-    private static Optional<View> getView(DdapFrontendClient ddapFrontendClient, String damUrl, String realm, String resource, String view) {
-        Map<String, Resource> resources = ddapFrontendClient.getResources(URI.create(damUrl), realm)
-            .getResources();
-
-        return resources.entrySet()
-            .stream()
-            .filter((entry) -> entry.getKey().equals(resource) && entry.getValue().getViews().containsKey(view))
-            .map((entry) -> entry.getValue())
-            .map(Resource::getViews)
-            .map((views) -> views.get(view))
-            .findFirst();
-    }
-
-    private static String getDefaultRole(View view) {
-        return view.getRoles().keySet()
-            .iterator()
-            .next();
-    }
-
     private static void writeOutputToEnvFile(File outputFile, ResourceTokens response, PrintStream printStream) throws IOException {
         try (OutputStream outputStream = new FileOutputStream(outputFile)) {
             final StringBuilder exportStmtBuilder = new StringBuilder();
-            final String access = response.getResources()
-                .values()
-                .stream()
-                .map(ResourceTokens.Descriptor::getAccess)
-                .findFirst()
-                .orElseThrow(() -> new IllegalStateException("Token response must contain at least one resource"));
-            final String accessToken = response.getAccess()
-                .get(access)
-                .getCredentials()
-                .getAccessToken();
+            final String accessToken = response.getAccessToken();
+            if(accessToken == null) {
+                throw new IllegalStateException("Token response must contain an access token");
+            }
             exportStmtBuilder.append("export TOKEN=")
                 .append(accessToken)
                 .append(System.lineSeparator());
-
-            final Optional<ResourceTokens.Interface> foundHttpGcsUri = response.getResources().keySet().stream()
-                .map((resource) -> response.getResources().get(resource))
-                .map(ResourceTokens.Descriptor::getInterfaces)
-                .map((resourceInterface) -> {
-                    return resourceInterface.entrySet().stream()
-                        .filter((entry) -> entry.getKey().contains("http:gcp:gs"))
-                        .map(Map.Entry::getValue)
-                        .findFirst();
-                })
-                .collect(Collectors.toList())
-                .get(0); // Assuming there is just one resource
-
-            foundHttpGcsUri.ifPresent(interfaceObj -> exportStmtBuilder.append("export HTTP_BUCKET_URL=")
-                .append(interfaceObj.getItems().get(0).getUri())
-                .append(System.lineSeparator()));
 
             IOUtils.write(exportStmtBuilder.toString(), outputStream);
             printStream.printf("Output written to %s%n", outputFile.getPath());
@@ -240,9 +183,6 @@ public class CommandLineClient {
             printStream.println("Example:");
             printStream.println();
             printStream.printf("source %s%n", outputFile);
-            if (foundHttpGcsUri.isPresent()) {
-                printStream.println("curl ${HTTP_BUCKET_URL}/o?access_token=${TOKEN}");
-            }
         }
     }
 
@@ -271,7 +211,7 @@ public class CommandLineClient {
             commandLine.hasOption("d"));
         persistContextIfRequired(contextDAO, context);
         try {
-            final Map<String, ResourceResponse> resourceResponseByDamId = new ListCommand(context,
+            final ResourceResponse resourceResponseByDamId = new ListCommand(context,
                 ddapFrontendClient,
                 jsonMapper).listResources();
             yamlMapper.writer().writeValue(System.out, resourceResponseByDamId);

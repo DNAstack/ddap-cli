@@ -19,8 +19,8 @@ public interface DdapFrontendClient {
     @RequestLine("POST /api/" + API_VERSION + "/realm/{realm}/cli/{cliSessionId}/authorize/clear")
     void clearCartToken(@Param("realm") String realm, @Param("cliSessionId") String cliSessionId);
 
-    @RequestLine("GET {url}/{realm}/resources")
-    ResourceResponse getResources(URI uri, @Param("realm") String realm);
+    @RequestLine("GET /api/v1beta/{realm}/resources")
+    ResourceResponse getResources(@Param("realm") String realm);
 
     @RequestLine("GET /api/" + API_VERSION + "/realm/master/dam")
     Map<String, DamInfo> getDamInfos();

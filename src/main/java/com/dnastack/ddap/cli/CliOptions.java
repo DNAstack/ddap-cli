@@ -11,7 +11,7 @@ import java.util.Map;
 class CliOptions {
     private static final String PRINT_OPT = "p";
     static final String FILE_OPT = "f";
-    static final String DAM_ID_OPT = "i";
+    static final String INTERFACE_ID_OPT = "i";
     static final String RESOURCE_OPT = "r";
     static final String VIEW_OPT = "v";
     static final String LOCATION_OPT = "l";
@@ -60,22 +60,10 @@ class CliOptions {
                                  .build());
 
         return new Options()
-                .addOption(Option.builder(DAM_ID_OPT)
-                                 .longOpt("damId")
+                .addOption(Option.builder(INTERFACE_ID_OPT)
+                                 .longOpt("interfaceId")
                                  .required()
-                                 .desc("An ID of a DAM")
-                                 .hasArg()
-                                 .build())
-                .addOption(Option.builder(RESOURCE_OPT)
-                                 .longOpt("resource")
-                                 .required()
-                                 .desc("A DAM resource to request access")
-                                 .hasArg()
-                                 .build())
-                .addOption(Option.builder(VIEW_OPT)
-                                 .longOpt("view")
-                                 .required()
-                                 .desc("A DAM view to request access")
+                                 .desc("An ID of an Interface")
                                  .hasArg()
                                  .build())
                 .addOptionGroup(outputGroup);

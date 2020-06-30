@@ -33,22 +33,21 @@ public class GetAccessCommand {
         }
     }
 
-    public ResourceTokens getAccessToken(DamInfo damInfo, String resourceId, String viewId, String roleId) throws GetAccessException {
+    public ResourceTokens getAccessToken(String interfaceId) throws GetAccessException {
         String cliSessionId = UUID.randomUUID().toString(); // Ideally it should check first if same UUID exists
-        String damIdResourcePath = String.format("%s;%s/views/%s/roles/%s", damInfo.getId(), resourceId, viewId, roleId);
-        String baseUrl = String.format("%s/api/v1alpha", context.getUrl());
-        String redirectUrl = getRedirectUrl(baseUrl, context.getRealm(), cliSessionId, damIdResourcePath);
+        String baseUrl = String.format("%s/api", context.getUrl());
+        String redirectUrl = getRedirectUrl(baseUrl, context.getRealm(), cliSessionId, interfaceId);
         String authorizeUrl = String.format(
-            "%s/realm/%s/resources/authorize?resource=%s;%s/views/%s/roles/%s&redirectUri=%s",
-            baseUrl, context.getRealm(), damInfo.getId(), resourceId, viewId, roleId, redirectUrl
+            "%s/v1beta/%s/resources/authorize?resource=%s&redirect_uri=%s",
+            baseUrl, context.getRealm(), interfaceId, redirectUrl
         );
         URI authorizeStatusUri = URI.create(String.format(
-            "%s/realm/%s/cli/%s/authorize/status?resource=%s",
-            baseUrl, context.getRealm(), cliSessionId, damIdResourcePath)
+            "%s/v1alpha/realm/%s/cli/%s/authorize/status?resource=%s",
+            baseUrl, context.getRealm(), cliSessionId, interfaceId)
         );
 
         ddapFrontendClient.clearCartToken(context.getRealm(), cliSessionId); // Get rid of old/stale stored tokens first
-        displayLinkToAuthorization(resourceId, viewId, roleId, authorizeUrl);
+        displayLinkToAuthorization(interfaceId, authorizeUrl);
         try {
             System.out.printf("Waiting for web authorization to complete for next %d seconds...%n", TIMEOUT_IN_SECONDS);
             ResourceTokens tokens = pollStatus(() -> ddapFrontendClient.authorizeStatus(authorizeStatusUri));
@@ -57,20 +56,19 @@ public class GetAccessCommand {
             return tokens;
         } catch (FeignException fe) {
             final String message = parseDdapErrorMessage(objectMapper, fe);
-            throw new GetAccessException(format("Could not get access to %s/%s%n%d : %s%n",
-                resourceId,
-                viewId,
+            throw new GetAccessException(format("Could not get access to %s%n%d : %s%n",
+                interfaceId,
                 fe.status(),
                 message), fe);
         }
     }
 
-    private void displayLinkToAuthorization(String resourceId, String viewId, String roleId, String authorizeUrl) {
-        System.out.printf("Visit this link in a web browser to authorize for resource [%s/%s/%s] : %s%n", resourceId, viewId, roleId, authorizeUrl);
+    private void displayLinkToAuthorization(String interfaceId, String authorizeUrl) {
+        System.out.printf("Visit this link in a web browser to authorize for resource [%s] : %s%n", interfaceId, authorizeUrl);
     }
 
-    private static String getRedirectUrl(String ddapBaseUrl, String realm, String cliSessionId, String damIdResourcePath) {
-        return String.format("%s/realm/%s/cli/%s/authorize/callback?resource=%s", ddapBaseUrl, realm, cliSessionId, damIdResourcePath);
+    private static String getRedirectUrl(String ddapBaseUrl, String realm, String cliSessionId, String interfaceId) {
+        return String.format("%s/v1alpha/realm/%s/cli/%s/authorize/callback?resource=%s", ddapBaseUrl, realm, cliSessionId, interfaceId);
     }
 
     private static ResourceTokens pollStatus(Supplier<ResourceTokens> pollingAction) {

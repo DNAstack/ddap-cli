@@ -26,13 +26,9 @@ public class ListCommand {
         }
     }
 
-    public Map<String, ResourceResponse> listResources() throws ListException {
+    public ResourceResponse listResources() throws ListException {
         try {
-            return context.getDamInfos()
-                          .values()
-                          .stream()
-                          .map(damInfo -> Map.entry(damInfo.getId(), ddapFrontendClient.getResources(URI.create(damInfo.getUrl()), context.getRealm())))
-                          .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+            return  ddapFrontendClient.getResources(context.getRealm());
         } catch (FeignException fe) {
             final String message = parseDdapErrorMessage(objectMapper, fe);
             throw new ListException(format("Could not list resources%n%d : %s%n", fe.status(), message), fe);
