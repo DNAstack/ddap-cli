@@ -251,9 +251,7 @@ public class CommandLineClient {
             .hasOption("d"));
 
         final String realm = parsedArgs.getOptionValue(CliOptions.REALM_OPT, "dnastack");
-        final Map<String, DamInfo> damInfos = ddapFrontendClient.getDamInfos();
         context.setRealm(realm);
-        context.setDamInfos(damInfos);
         context.setUrl(ddapRootUrl);
         context.setChanged(true);
         persistContextIfRequired(contextDAO, context);

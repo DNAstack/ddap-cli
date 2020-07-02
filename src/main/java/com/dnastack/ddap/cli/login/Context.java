@@ -16,13 +16,11 @@ public class Context {
 
     private String url;
     private String realm;
-    private Map<String, DamInfo> damInfos;
     private Credentials credentials;
 
-    public Context(String url, String realm, Map<String, DamInfo> damInfos, Credentials credentials) {
+    public Context(String url, String realm, Credentials credentials) {
         this.url = url;
         this.realm = realm;
-        this.damInfos = damInfos;
         this.credentials = credentials;
     }
 
