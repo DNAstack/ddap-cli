@@ -29,7 +29,7 @@ public class DdapHttpClient {
 
         if (credentials.getUsername() != null && credentials.getPassword() != null) {
             String form = String
-                .format("username=%s&password=%s", credentials.getPassword(), credentials.getPassword());
+                .format("username=%s&password=%s", credentials.getUsername(), credentials.getPassword());
             request = HttpRequest.newBuilder()
                 .uri(URI.create(ddapBaseUri).resolve("/login"))
                 .header("Content-Type", "application/x-www-form-urlencoded")
@@ -46,7 +46,7 @@ public class DdapHttpClient {
             HttpResponse<String> response = DdapHttpClient.buildClient()
                 .send(request, HttpResponse.BodyHandlers.ofString());
 
-            if (response.statusCode() == 302 && response.headers().firstValue("location").map(l -> l.endsWith("login"))
+            if (response.statusCode() == 302 && response.headers().firstValue("location").map(l -> l.endsWith("error"))
                 .orElse(false)) {
                 throw new DdapClientException("Could not login to DDAP");
             }
